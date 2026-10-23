@@ -1,0 +1,67 @@
+name: Build Master Metals Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Extract project ZIP
+        run: |
+          test -f Master_Metals_Pixel_APK_Build_Package.zip
+          unzip -q Master_Metals_Pixel_APK_Build_Package.zip -d source
+          test -f source/mastermetals_work/package.json
+          test -f source/mastermetals_work/capacitor.config.ts
+
+      - name: Install dependencies
+        working-directory: source/mastermetals_work
+        run: npm install --no-audit --no-fund
+
+      - name: Build web app
+        working-directory: source/mastermetals_work
+        run: npm run build
+
+      - name: Generate Android project and bundle assets
+        working-directory: source/mastermetals_work
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Build debug APK
+        working-directory: source/mastermetals_work/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-metals-debug-apk
+          path: source/mastermetals_work/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+          
